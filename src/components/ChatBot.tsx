@@ -143,8 +143,7 @@ const ChatBot = () => {
               <div className="absolute -top-1 -right-1 w-4 h-4 bg-neon-cyan rounded-full animate-pulse-neon"></div>
             </div>
             <div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-neon-blue to-neon-cyan bg-clip-text text-transparent">Chato Bot IA Polo Digital de Mogi das Cruzes
-            </h1>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-neon-blue to-neon-cyan bg-clip-text text-transparent">Chat Bot IA Polo Digital de Mogi das Cruzes</h1>
               <p className="text-sm text-gray-400">Polo de Inovação de Projetos Avançados
             </p>
             </div>
