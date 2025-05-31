@@ -317,7 +317,7 @@ const ChatBot = () => {
         <div className="max-w-4xl mx-auto space-y-4">
           {!contextSet ? (/* Context Selection Interface */
         <div className="flex justify-center mt-20">
-              <Card className="w-full max-w-md glass-morphism border-white/20 p-6">
+              <Card className="w-full max-w-md glass-morphism border-white/20 p-6 bg-sky-800">
                 <h3 className="text-xl font-semibold mb-4 text-white text-center">
                   Escolha a Fonte de Contexto
                 </h3>
