@@ -129,18 +129,24 @@ const ChatBot = () => {
       }
 
       setContextSet(true);
-      const contextMessage: Message = {
-        id: Date.now().toString(),
-        text: `Contexto definido com sucesso! Agora você pode fazer perguntas sobre o conteúdo ${
-          selectedSource === 'site' ? `do site: ${sourceUrl}` : 
-          selectedSource === 'pdf' ? `do PDF: ${selectedFile?.name}` : 
-          `do vídeo do YouTube: ${sourceUrl}`
-        }`,
-        isBot: true,
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, contextMessage]);
-      
+	    let extraInfo = '';
+		if (selectedSource === 'pdf' && responseData.conteudo) {
+		  extraInfo = `\n\n🧾 Conteúdo inicial extraído:\n${responseData.conteudo}`;
+		}
+
+		const contextMessage: Message = {
+		  id: Date.now().toString(),
+		  text: `Contexto definido com sucesso! Agora você pode fazer perguntas sobre o conteúdo ${
+			selectedSource === 'site' ? `do site: ${sourceUrl}` : 
+			selectedSource === 'pdf' ? `do PDF: ${selectedFile?.name}` : 
+			`do vídeo do YouTube: ${sourceUrl}`
+		  }${extraInfo}`,
+		  isBot: true,
+		  timestamp: new Date()
+		};
+
+		setMessages(prev => [...prev, contextMessage]);
+    
       toast({
         title: 'Contexto definido',
         description: 'Agora você pode fazer suas perguntas!'
