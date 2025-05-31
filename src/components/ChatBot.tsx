@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Sparkles, Zap, Settings, Globe, FileText, Youtube, ArrowLeft } from 'lucide-react';
+import { Send, Bot, User, Sparkles, Zap, Settings, Globe, FileText, Youtube, ArrowLeft, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -31,9 +31,11 @@ const ChatBot = () => {
   const [contextSet, setContextSet] = useState(false);
   const [selectedSource, setSelectedSource] = useState<SourceType | ''>('');
   const [sourceUrl, setSourceUrl] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSettingContext, setIsSettingContext] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const API_BASE_URL = 'https://93c01e4e-2963-41d4-9f86-798f7faa0bee-00-35njt8ostge37.kirk.replit.dev';
@@ -47,10 +49,28 @@ const ChatBot = () => {
   }, [messages]);
 
   const setContext = async () => {
-    if (!selectedSource || !sourceUrl.trim()) {
+    if (!selectedSource) {
       toast({
-        title: 'Informações incompletas',
-        description: 'Por favor, selecione uma fonte e forneça a URL/caminho.',
+        title: 'Fonte não selecionada',
+        description: 'Por favor, selecione uma fonte de contexto.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (selectedSource === 'pdf' && !selectedFile) {
+      toast({
+        title: 'Arquivo não selecionado',
+        description: 'Por favor, selecione um arquivo PDF.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (selectedSource !== 'pdf' && !sourceUrl.trim()) {
+      toast({
+        title: 'URL não fornecida',
+        description: 'Por favor, forneça a URL.',
         variant: 'destructive'
       });
       return;
@@ -58,21 +78,37 @@ const ChatBot = () => {
 
     setIsSettingContext(true);
     
-    const payload = {
-      tipo: selectedSource,
-      caminho: sourceUrl
-    };
-    
-    console.log('Enviando payload para /setar_contexto:', payload);
-    
     try {
-      const response = await fetch(`${API_BASE_URL}/setar_contexto`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
+      let response;
+      
+      if (selectedSource === 'pdf' && selectedFile) {
+        // Upload de PDF
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        
+        console.log('Enviando arquivo PDF para /setar_contexto_pdf:', selectedFile.name);
+        
+        response = await fetch(`${API_BASE_URL}/setar_contexto_pdf`, {
+          method: 'POST',
+          body: formData
+        });
+      } else {
+        // URL para site ou YouTube
+        const payload = {
+          tipo: selectedSource,
+          caminho: sourceUrl
+        };
+        
+        console.log('Enviando payload para /setar_contexto:', payload);
+        
+        response = await fetch(`${API_BASE_URL}/setar_contexto`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+      }
 
       console.log('Resposta da API - Status:', response.status);
       console.log('Resposta da API - Headers:', Object.fromEntries(response.headers.entries()));
@@ -95,10 +131,11 @@ const ChatBot = () => {
       setContextSet(true);
       const contextMessage: Message = {
         id: Date.now().toString(),
-        text: `Contexto definido com sucesso! Agora você pode fazer perguntas sobre o conteúdo do ${
-          selectedSource === 'site' ? 'site' : 
-          selectedSource === 'pdf' ? 'PDF' : 'vídeo do YouTube'
-        }: ${sourceUrl}`,
+        text: `Contexto definido com sucesso! Agora você pode fazer perguntas sobre o conteúdo ${
+          selectedSource === 'site' ? `do site: ${sourceUrl}` : 
+          selectedSource === 'pdf' ? `do PDF: ${selectedFile?.name}` : 
+          `do vídeo do YouTube: ${sourceUrl}`
+        }`,
         isBot: true,
         timestamp: new Date()
       };
@@ -220,12 +257,31 @@ const ChatBot = () => {
     setContextSet(false);
     setSelectedSource('');
     setSourceUrl('');
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
     setMessages([{
       id: '1',
       text: 'Contexto resetado! Escolha uma nova fonte de contexto para continuar.',
       isBot: true,
       timestamp: new Date()
     }]);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.type !== 'application/pdf') {
+        toast({
+          title: 'Arquivo inválido',
+          description: 'Por favor, selecione apenas arquivos PDF.',
+          variant: 'destructive'
+        });
+        return;
+      }
+      setSelectedFile(file);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -334,7 +390,7 @@ const ChatBot = () => {
                         <SelectItem value="pdf" className="text-white hover:bg-gray-700">
                           <div className="flex items-center space-x-2">
                             <FileText className="w-4 h-4" />
-                            <span>PDF</span>
+                            <span>Upload PDF</span>
                           </div>
                         </SelectItem>
                         <SelectItem value="youtube" className="text-white hover:bg-gray-700">
@@ -347,11 +403,42 @@ const ChatBot = () => {
                     </Select>
                   </div>
 
-                  {selectedSource && (
+                  {selectedSource === 'pdf' ? (
                     <div>
                       <label className="text-sm text-gray-300 mb-2 block">
-                        {selectedSource === 'site' ? 'URL do Site' : 
-                         selectedSource === 'pdf' ? 'Caminho do PDF' : 'URL do YouTube'}
+                        Selecionar Arquivo PDF
+                      </label>
+                      <div className="space-y-2">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="application/pdf"
+                          onChange={handleFileChange}
+                          className="hidden"
+                          id="pdf-upload"
+                        />
+                        <label
+                          htmlFor="pdf-upload"
+                          className="flex items-center justify-center w-full p-3 border-2 border-dashed border-gray-600 rounded-lg cursor-pointer hover:border-gray-500 transition-colors"
+                        >
+                          <div className="flex items-center space-x-2 text-gray-300">
+                            <Upload className="w-5 h-5" />
+                            <span>
+                              {selectedFile ? selectedFile.name : 'Clique para selecionar PDF'}
+                            </span>
+                          </div>
+                        </label>
+                        {selectedFile && (
+                          <p className="text-xs text-gray-400">
+                            Arquivo selecionado: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : selectedSource && (
+                    <div>
+                      <label className="text-sm text-gray-300 mb-2 block">
+                        {selectedSource === 'site' ? 'URL do Site' : 'URL do YouTube'}
                       </label>
                       <Input
                         type="text"
@@ -359,7 +446,6 @@ const ChatBot = () => {
                         onChange={(e) => setSourceUrl(e.target.value)}
                         placeholder={
                           selectedSource === 'site' ? 'https://exemplo.com' :
-                          selectedSource === 'pdf' ? '/caminho/para/arquivo.pdf' :
                           'https://youtube.com/watch?v=...'
                         }
                         className="bg-gray-800/50 border-gray-600 text-white placeholder-gray-400"
@@ -369,7 +455,8 @@ const ChatBot = () => {
 
                   <Button
                     onClick={setContext}
-                    disabled={isSettingContext || !selectedSource || !sourceUrl.trim()}
+                    disabled={isSettingContext || !selectedSource || 
+                      (selectedSource === 'pdf' ? !selectedFile : !sourceUrl.trim())}
                     className="w-full bg-gradient-to-r from-neon-blue to-neon-purple hover:opacity-90"
                   >
                     {isSettingContext ? (
