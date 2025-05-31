@@ -1,5 +1,6 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Sparkles, Zap, Settings, Globe, FileText, Youtube, ArrowLeft, Upload } from 'lucide-react';
+import { Send, Bot, User, Sparkles, Zap, Settings, Globe, FileText, Youtube, ArrowLeft, Upload, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -13,12 +14,12 @@ interface Message {
   timestamp: Date;
 }
 
-type SourceType = 'site' | 'pdf' | 'youtube';
+type SourceType = 'site' | 'pdf' | 'youtube' | 'chat';
 
 const ChatBot = () => {
   const [messages, setMessages] = useState<Message[]>([{
     id: '1',
-    text: 'Olá! Sou o assistente virtual do Polo de Inovação. Primeiro, escolha uma fonte de contexto para que eu possa responder suas perguntas de forma mais precisa.',
+    text: 'Olá! Sou o assistente virtual do Polo de Inovação. Escolha uma fonte de contexto para que eu possa responder suas perguntas de forma mais precisa, ou selecione "Bate papo" para uma conversa livre.',
     isBot: true,
     timestamp: new Date()
   }]);
@@ -54,6 +55,24 @@ const ChatBot = () => {
         title: 'Fonte não selecionada',
         description: 'Por favor, selecione uma fonte de contexto.',
         variant: 'destructive'
+      });
+      return;
+    }
+
+    // Se for bate papo, simplesmente ativa o chat sem definir contexto
+    if (selectedSource === 'chat') {
+      setContextSet(true);
+      const chatMessage: Message = {
+        id: Date.now().toString(),
+        text: 'Modo bate papo ativado! Agora você pode conversar livremente comigo. Faça suas perguntas sobre qualquer assunto.',
+        isBot: true,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, chatMessage]);
+      
+      toast({
+        title: 'Bate papo iniciado',
+        description: 'Agora você pode conversar livremente!'
       });
       return;
     }
@@ -181,7 +200,7 @@ const ChatBot = () => {
     if (!contextSet) {
       toast({
         title: 'Contexto necessário',
-        description: 'Por favor, defina primeiro uma fonte de contexto.',
+        description: 'Por favor, defina primeiro uma fonte de contexto ou inicie um bate papo.',
         variant: 'destructive'
       });
       return;
@@ -199,46 +218,70 @@ const ChatBot = () => {
     setIsLoading(true);
     setIsTyping(true);
 
-    const payload = {
-      pergunta: inputValue
-    };
-
-    console.log('Enviando pergunta para /perguntar:', payload);
-
     try {
-      const response = await fetch(`${API_BASE_URL}/perguntar`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      console.log('Resposta /perguntar - Status:', response.status);
-
+      let response;
       let responseData;
-      try {
-        responseData = await response.json();
-        console.log('Resposta /perguntar - Body:', responseData);
-      } catch (jsonError) {
-        console.error('Erro ao fazer parse do JSON da pergunta:', jsonError);
-        throw new Error('Resposta inválida do servidor');
+
+      // Se for modo chat, usa endpoint diferente ou lógica específica
+      if (selectedSource === 'chat') {
+        // Para bate papo livre, podemos usar um endpoint específico ou simular uma resposta
+        // Por enquanto, vou simular uma resposta do bot
+        setTimeout(() => {
+          const botResponse = `Obrigado pela sua pergunta: "${inputValue}". Como estamos no modo bate papo livre, posso conversar sobre diversos assuntos. Como posso ajudá-lo hoje?`;
+          
+          const botMessage: Message = {
+            id: Date.now().toString() + '_bot',
+            text: botResponse,
+            isBot: true,
+            timestamp: new Date()
+          };
+
+          setMessages(prev => [...prev, botMessage]);
+          setIsLoading(false);
+          setIsTyping(false);
+        }, 1000);
+        return;
+      } else {
+        // Comportamento normal para contextos específicos
+        const payload = {
+          pergunta: inputValue
+        };
+
+        console.log('Enviando pergunta para /perguntar:', payload);
+
+        response = await fetch(`${API_BASE_URL}/perguntar`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        console.log('Resposta /perguntar - Status:', response.status);
+
+        try {
+          responseData = await response.json();
+          console.log('Resposta /perguntar - Body:', responseData);
+        } catch (jsonError) {
+          console.error('Erro ao fazer parse do JSON da pergunta:', jsonError);
+          throw new Error('Resposta inválida do servidor');
+        }
+
+        if (!response.ok) {
+          throw new Error(`Erro ${response.status}: ${responseData?.detail || responseData?.message || 'Erro na API'}`);
+        }
+
+        const botResponse = responseData.resposta || 'Desculpe, não consegui processar sua solicitação.';
+
+        const botMessage: Message = {
+          id: Date.now().toString() + '_bot',
+          text: botResponse,
+          isBot: true,
+          timestamp: new Date()
+        };
+
+        setMessages(prev => [...prev, botMessage]);
       }
-
-      if (!response.ok) {
-        throw new Error(`Erro ${response.status}: ${responseData?.detail || responseData?.message || 'Erro na API'}`);
-      }
-
-      const botResponse = responseData.resposta || 'Desculpe, não consegui processar sua solicitação.';
-
-      const botMessage: Message = {
-        id: Date.now().toString() + '_bot',
-        text: botResponse,
-        isBot: true,
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, botMessage]);
     } catch (error) {
       console.error('Erro ao enviar pergunta:', error);
       
@@ -303,6 +346,7 @@ const ChatBot = () => {
       case 'site': return <Globe className="w-4 h-4" />;
       case 'pdf': return <FileText className="w-4 h-4" />;
       case 'youtube': return <Youtube className="w-4 h-4" />;
+      case 'chat': return <MessageCircle className="w-4 h-4" />;
       default: return null;
     }
   };
@@ -386,6 +430,12 @@ const ChatBot = () => {
                         <SelectValue placeholder="Selecione uma fonte" />
                       </SelectTrigger>
                       <SelectContent className="bg-gray-800 border-gray-600">
+                        <SelectItem value="chat" className="text-white hover:bg-gray-700">
+                          <div className="flex items-center space-x-2">
+                            <MessageCircle className="w-4 h-4" />
+                            <span>Bate papo</span>
+                          </div>
+                        </SelectItem>
                         <SelectItem value="site" className="text-white hover:bg-gray-700">
                           <div className="flex items-center space-x-2">
                             <Globe className="w-4 h-4" />
@@ -440,7 +490,7 @@ const ChatBot = () => {
                         )}
                       </div>
                     </div>
-                  ) : selectedSource && (
+                  ) : selectedSource && selectedSource !== 'chat' && (
                     <div>
                       <label className="text-sm text-gray-300 mb-2 block">
                         {selectedSource === 'site' ? 'URL do Site' : 'URL do YouTube'}
@@ -461,7 +511,8 @@ const ChatBot = () => {
                   <Button
                     onClick={setContext}
                     disabled={isSettingContext || !selectedSource || 
-                      (selectedSource === 'pdf' ? !selectedFile : !sourceUrl.trim())}
+                      (selectedSource === 'pdf' ? !selectedFile : 
+                       selectedSource !== 'chat' && selectedSource !== 'pdf' ? !sourceUrl.trim() : false)}
                     className="w-full bg-gradient-to-r from-neon-blue to-neon-purple hover:opacity-90"
                   >
                     {isSettingContext ? (
@@ -472,7 +523,9 @@ const ChatBot = () => {
                     ) : (
                       <>
                         {selectedSource && getSourceIcon(selectedSource as SourceType)}
-                        <span className="ml-2">Definir Contexto</span>
+                        <span className="ml-2">
+                          {selectedSource === 'chat' ? 'Iniciar Bate Papo' : 'Definir Contexto'}
+                        </span>
                       </>
                     )}
                   </Button>
@@ -536,7 +589,9 @@ const ChatBot = () => {
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Digite sua pergunta sobre o contexto definido..."
+                  placeholder={selectedSource === 'chat' ? 
+                    "Digite sua mensagem para conversar..." : 
+                    "Digite sua pergunta sobre o contexto definido..."}
                   className="glass-morphism border-white/20 text-white placeholder-gray-400 pr-12 py-3 text-base"
                   disabled={isLoading}
                 />
