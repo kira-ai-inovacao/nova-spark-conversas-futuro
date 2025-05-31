@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Sparkles, Zap, Settings, Globe, FileText, Youtube, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -58,20 +57,39 @@ const ChatBot = () => {
     }
 
     setIsSettingContext(true);
+    
+    const payload = {
+      tipo: selectedSource,
+      caminho: sourceUrl
+    };
+    
+    console.log('Enviando payload para /setar_contexto:', payload);
+    
     try {
       const response = await fetch(`${API_BASE_URL}/setar_contexto`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          tipo: selectedSource,
-          caminho: sourceUrl
-        })
+        body: JSON.stringify(payload)
       });
 
+      console.log('Resposta da API - Status:', response.status);
+      console.log('Resposta da API - Headers:', Object.fromEntries(response.headers.entries()));
+
+      let responseData;
+      try {
+        responseData = await response.json();
+        console.log('Resposta da API - Body:', responseData);
+      } catch (jsonError) {
+        console.error('Erro ao fazer parse do JSON:', jsonError);
+        const textResponse = await response.text();
+        console.log('Resposta da API - Text:', textResponse);
+        throw new Error(`Erro ${response.status}: Resposta inválida do servidor`);
+      }
+
       if (!response.ok) {
-        throw new Error('Erro ao definir contexto');
+        throw new Error(`Erro ${response.status}: ${responseData?.detail || responseData?.message || 'Erro desconhecido'}`);
       }
 
       setContextSet(true);
@@ -91,10 +109,23 @@ const ChatBot = () => {
         description: 'Agora você pode fazer suas perguntas!'
       });
     } catch (error) {
-      console.error('Erro:', error);
+      console.error('Erro completo:', error);
+      
+      let errorMessage = 'Não foi possível processar a fonte fornecida.';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('500')) {
+          errorMessage = 'Erro interno do servidor. Verifique se a URL/caminho está correto e tente novamente.';
+        } else if (error.message.includes('network')) {
+          errorMessage = 'Erro de conexão. Verifique sua internet.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
         title: 'Erro ao definir contexto',
-        description: 'Não foi possível processar a fonte fornecida. Verifique a URL/caminho.',
+        description: errorMessage,
         variant: 'destructive'
       });
     } finally {
@@ -126,23 +157,37 @@ const ChatBot = () => {
     setIsLoading(true);
     setIsTyping(true);
 
+    const payload = {
+      pergunta: inputValue
+    };
+
+    console.log('Enviando pergunta para /perguntar:', payload);
+
     try {
       const response = await fetch(`${API_BASE_URL}/perguntar`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          pergunta: inputValue
-        })
+        body: JSON.stringify(payload)
       });
 
-      if (!response.ok) {
-        throw new Error('Erro na API');
+      console.log('Resposta /perguntar - Status:', response.status);
+
+      let responseData;
+      try {
+        responseData = await response.json();
+        console.log('Resposta /perguntar - Body:', responseData);
+      } catch (jsonError) {
+        console.error('Erro ao fazer parse do JSON da pergunta:', jsonError);
+        throw new Error('Resposta inválida do servidor');
       }
 
-      const data = await response.json();
-      const botResponse = data.resposta || 'Desculpe, não consegui processar sua solicitação.';
+      if (!response.ok) {
+        throw new Error(`Erro ${response.status}: ${responseData?.detail || responseData?.message || 'Erro na API'}`);
+      }
+
+      const botResponse = responseData.resposta || 'Desculpe, não consegui processar sua solicitação.';
 
       const botMessage: Message = {
         id: Date.now().toString() + '_bot',
@@ -153,10 +198,16 @@ const ChatBot = () => {
 
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
-      console.error('Erro:', error);
+      console.error('Erro ao enviar pergunta:', error);
+      
+      let errorMessage = 'Não foi possível conectar com o serviço.';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: 'Erro de conexão',
-        description: 'Não foi possível conectar com o serviço.',
+        description: errorMessage,
         variant: 'destructive'
       });
     } finally {
